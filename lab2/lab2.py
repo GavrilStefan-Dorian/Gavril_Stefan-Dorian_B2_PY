@@ -62,9 +62,6 @@ def ex5():
         return x == int(str(x)[::-1])
 
     num = input("Please input num to check if palindrome: ")
-    if type(num) != int:
-        raise Exception("Please enter an integer")
-
     num = int(num)
     print(is_palindrome(num))
 
