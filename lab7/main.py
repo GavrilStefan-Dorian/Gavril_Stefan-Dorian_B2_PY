@@ -76,12 +76,15 @@ def ex4(directory: str) -> None:
         for (root, dirs, files) in os.walk(directory):
             for file in files:
                 fileExtension = '.' + file.split('.')[-1]
-                extensions.update({fileExtension: [extensions.values()].count(fileExtension)})
+                if [x for x in extensions.keys()].count(fileExtension) == 0:
+                    extensions[fileExtension] = 1
+                else:
+                    extensions[fileExtension] += 1
     except PermissionError:
         print(f'Cannot access {directory}')
 
     for extension in extensions:
-        print(extension)
+        print(extension, extensions[extension])
 
 
 def main():
@@ -92,7 +95,7 @@ def main():
     print("=======EX3=======")
     ex3(sys.argv[3])
     print("=======EX4=======")
-    ex4(sys.argv[3])
+    ex4(sys.argv[1])
 
 if __name__ == '__main__':
     main()
