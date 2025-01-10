@@ -106,16 +106,19 @@ def scrape_state_data(response):
         value = row.find("td")
         if header and value:
             header_text = header.get_text(strip=True).lower()
+            header_text = header_text.split('[')[0] # Cipru outlier: [<ref>] gets caught by .isalpha()
             header_text = ''.join(char for char in header_text if char.isalpha() or char.isspace())
             header_text = header_text.strip()
             value_text = value.get_text(strip=True)
 
             if header_text == 'fus orar':
                 state_data['fus orar'] = value_text
-            elif header_text == 'totală':
-                state_data['totală'] = format_area(value_text)
+            elif header_text == 'totală' or header_text == 'total':
+                if state_data['totală'] is None:
+                    state_data['totală'] = format_area(value_text)
             elif header_text == 'estimare' or header_text == 'recensământ': # Norvegia uses recensamant
-                state_data['estimare'] = format_population(value_text)
+                if state_data['estimare'] is None:
+                    state_data['estimare'] = format_population(value_text)
             elif header_text == 'vecini':
                 state_data['vecini'] = format_neighbors(value)
             elif header_text == 'limbi oficiale':
@@ -155,6 +158,7 @@ def format_population(value_text):
         str: The formatted population estimate.
     """
     new_value_text = value_text.split()[0]
+    new_value_text = new_value_text.split('[')[0] # Romania has a numerical reference that passes .isdigit()
     new_value_text = ''.join([char for char in new_value_text if char.isdigit() or char == '.'])
     return new_value_text.replace('.', '')
 
@@ -274,9 +278,6 @@ def main():
         print(state_data)
 
         ops_database.insert_state_data(states[i], state_data)
-
-    ops_database.cursor.close()
-    ops_database.conn.close()
 
 if __name__ == "__main__":
     main()

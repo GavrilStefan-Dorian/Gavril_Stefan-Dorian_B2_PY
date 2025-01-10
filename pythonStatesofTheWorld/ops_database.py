@@ -1,16 +1,17 @@
 import psycopg2
 
-# Configurare conexiune
-db_params = {
-    'dbname': 'states_db',
-    'user': 'postgres',
-    'password': 'postgres',
-    'host': 'localhost',
-    'port': '5432'
-}
+def get_db_connection():
+    # Configurare conexiune
+    db_params = {
+        'dbname': 'states_db',
+        'user': 'postgres',
+        'password': 'postgres',
+        'host': 'localhost',
+        'port': '5432'
+    }
 
-conn = psycopg2.connect(**db_params)
-cursor = conn.cursor()
+    conn = psycopg2.connect(**db_params)
+    return conn
 
 def insert_state_data(state_name, state_data_dict):
     """
@@ -29,6 +30,10 @@ def insert_state_data(state_name, state_data_dict):
     Raises:
         Prints an error message for any exception.
     """
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
     state_data_list = [
         state_name,
         state_data_dict.get('totală', None),
