@@ -5,6 +5,20 @@ from requests import RequestException
 
 
 def req_url(url: str):
+    """
+    Sends a GET request to THE URL and handles status codes.
+
+    Args:
+        url (str): The URL for the request.
+
+    Returns:
+        requests.Response or None:
+            - The response object if request succeeded.
+            - None if the request fails or an error occurs.
+
+    Raises:
+        Prints an error message for any exceptions.
+    """
     try:
         response = requests.get(url)
 
@@ -17,6 +31,18 @@ def req_url(url: str):
         print(f"An error occured when requesting the page: {e}")
 
 def scrape_states(response):
+    """
+    Extracts state names and associated links from a table in the HTML.
+    The state names are cleaned of special characters and the links are
+    relative paths (/wiki/{state}) of the states.
+
+    Args:
+        response (requests.Response): The response object with the HTML to be parsed.
+    Returns:
+    tuple: A tuple containing two lists:
+        - states (list): A list of state names as strings.
+        - state_links (list): A list of Wikipedia links for each state respectively.
+    """
     soup = BeautifulSoup(response.text, "html.parser")
     table = soup.find("table")
 
@@ -46,13 +72,27 @@ def scrape_states(response):
     return states, state_links
 
 def scrape_state_data(response):
+    """
+    Scrapes state details: area, population, neighbors, languages, political system,
+    capital, and density from the provided HTML response.
+    Specifically, extracts data from a table with class 'infocaseta', parses fields
+    based on their headers
+
+    Args:
+        response (requests.Response): The response object containing the HTML to be parsed.
+
+    Returns:
+        list: A list of parsed state details
+    """
     soup = BeautifulSoup(response.text, "html.parser")
     table = soup.find("table", attrs={"class": "infocaseta"})
 
     rows = table.findAll("tr")
     details = ('totală', 'vecini', 'fus orar', 'densitate', 'estimare', 'limbi oficiale', 'sistem politic', 'capitala')
 
+    state_data = []
     for row in rows:
+
         header = row.find("th")
         value = row.find("td")
         if header and value:
@@ -62,22 +102,141 @@ def scrape_state_data(response):
             value_text = value.get_text(strip=True)
 
             if header_text == 'totală':
-                value_text = re.search(r'\b\d+(?:[., ]\d+)*\b', value_text)
-                value_text = value_text.group(0).replace(',', '').replace('.', '').replace(' ', '')
-
-            if header_text == 'vecini':
-                value_text = [border.get_text(strip=True) for border in value.findAll('a')]
-                value_text.pop()
-
-            if header_text == 'limbi oficiale':
-                first_anchor = value.find('a')
-                if first_anchor:
-                    value_text = first_anchor.get_text(strip=True)
+                value_text = format_area(value_text)
+            elif header_text == 'estimare':
+                value_text = format_population(value_text)
+            elif header_text == 'vecini':
+                value_text = format_neighbors(value)
+            elif header_text == 'limbi oficiale':
+                value_text = format_languages(value)
+            elif header_text == 'sistem politic':
+                value_text = format_political_system(value)
+            elif header_text == 'capitala':
+                value_text = format_capital(value)
+            elif header_text == 'densitate':
+                value_text = format_density(value_text)
 
             if header_text in details:
-                print(f"Header: {header_text}, Value: {value_text}")
+                    state_data.append(value_text)
+
+    return state_data
+
+def format_area(value_text):
+    """
+    Format the area value by removing unwanted characters and extracting the relevant number.
+
+    Args:
+        value_text (str): The text containing the area data.
+
+    Returns:
+        str: The cleaned area value as a string.
+    """
+    new_value_text = re.sub(r'[ ,.\xa0]', '', value_text)
+    match = re.match(r'^\d+', new_value_text)
+    return match.group() if match else value_text
 
 
+def format_population(value_text):
+    """
+    Format the population estimate by extracting only the relevant number.
+
+    Args:
+        value_text (str): The text containing the population data.
+
+    Returns:
+        str: The formatted population estimate.
+    """
+    new_value_text = value_text.split()[0]
+    new_value_text = ''.join([char for char in new_value_text if char.isdigit() or char == '.'])
+    return new_value_text
+
+
+def format_neighbors(value):
+    """
+    Format the neighbors' names then join them with commas.
+
+    Args:
+        value (BeautifulSoup element): The 'td' element containing the neighbors' data.
+
+    Returns:
+        str: A string containing the names of the neighbors separated by commas.
+    """
+
+    # fix for Belarus , [5]
+    value_text = [border.get_text(strip=True) for border in value.findAll('a')]
+    value_text.pop()  # Removing the last needless row on the page
+    value_text = [text for text in value_text if text.replace(' ', '').isalpha()] # On some states would include refs: <neighbor>[<digit>]
+    value_text = ', '.join(value_text)
+
+    return value_text
+
+
+def format_languages(value):
+    """
+    Extract the first official language
+
+    Args:
+        value (BeautifulSoup element): The 'td' element containing the languages' data.
+
+    Returns:
+        str: The name of the first official language.
+    """
+    first_anchor = value.find('a')
+    if first_anchor:
+        return first_anchor.get_text(strip=True)
+    return value.get_text(strip=True)
+
+def format_political_system(value):
+    """
+    Extract and format the political system.
+
+    Args:
+        value (BeautifulSoup element): The 'td' element containing the political system data.
+
+    Returns:
+        str: The formatted political system as a string.
+    """
+    new_value_text = ''
+    for anchor in value.findAll('a'):
+        text = anchor.get_text(strip=True)
+        if text.replace(' ', '').replace('-', '').isalpha():
+            new_value_text += text + ' '
+
+    if new_value_text == '':
+        new_value_text += value.get_text(strip=True)
+
+    return new_value_text.strip().rstrip(',')
+
+
+def format_capital(value):
+    """
+    Extract and format the capital city.
+
+    Args:
+        value (BeautifulSoup element): The 'td' element containing the capital data.
+
+    Returns:
+        str: The formatted capital city as a string.
+    """
+    new_value_text = ''
+    # must fix for antigua saint john's
+    for anchor in value.findAll('a'):
+        text = anchor.get_text(strip=True)
+        new_value_text += ''.join([char for char in text if char.isalpha() or char.isspace() or char == '\'']) + ', '
+    return new_value_text.strip().rstrip(', ').lstrip(', ')
+
+
+def format_density(value_text):
+    """
+    Format the density value by removing unwanted characters.
+
+    Args:
+        value_text (str): The text containing the density data.
+
+    Returns:
+        str: The formatted density value.
+    """
+    return value_text.replace('[', ' ').replace('/', ' ').split()[0]
 
 def main():
     response = req_url("https://ro.wikipedia.org/wiki/Lista_statelor_lumii")
@@ -88,16 +247,19 @@ def main():
     states, state_links = scrape_states(response)
     base_url = "https://ro.wikipedia.org"
 
+    states_data = dict()
+
     for i in range(len(states)):
         state_url = base_url + state_links[i]
         state_page = req_url(state_url)
         if not state_page:
             return
 
-        print(f"State: {states[i]}")
-        scrape_state_data(state_page)
+        state_data = scrape_state_data(state_page)
+        states_data[states[i]] = state_data
 
-        print()
+        print(f"State: {states[i]}")
+        print(state_data)
 
 if __name__ == "__main__":
     main()
