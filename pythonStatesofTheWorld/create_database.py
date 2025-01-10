@@ -40,9 +40,9 @@ try:
             name VARCHAR(100) NOT NULL,
             area INTEGER,
             neighbors TEXT,
-            timezone VARCHAR(50),
+            timezone VARCHAR(500),
             density FLOAT,
-            population BIGINT,
+            population INTEGER,
             lang VARCHAR(100),
             political_system VARCHAR(100),
             capital VARCHAR(100)

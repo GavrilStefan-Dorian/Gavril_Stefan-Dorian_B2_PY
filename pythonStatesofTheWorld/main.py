@@ -1,6 +1,7 @@
 import requests
 import re
 from bs4 import BeautifulSoup
+import ops_database
 
 
 def req_url(url: str):
@@ -249,7 +250,7 @@ def format_density(value_text):
         if match:
             value_text = match.group(1)
 
-        return value_text.replace(',', '.') # Romania uses ,
+        return value_text.replace(',', '.') # Romania uses ','
     return value_text.replace('[', ' ').replace('/', ' ').replace('.', '').replace(',', '.').split()[0]
 
 def main():
@@ -271,6 +272,11 @@ def main():
 
         print(f"State: {states[i]}")
         print(state_data)
+
+        ops_database.insert_state_data(states[i], state_data)
+
+    ops_database.cursor.close()
+    ops_database.conn.close()
 
 if __name__ == "__main__":
     main()
