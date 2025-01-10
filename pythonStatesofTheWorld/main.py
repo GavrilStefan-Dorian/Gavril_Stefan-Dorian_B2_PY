@@ -1,7 +1,6 @@
 import requests
 import re
 from bs4 import BeautifulSoup
-from requests import RequestException
 
 
 def req_url(url: str):
@@ -88,9 +87,18 @@ def scrape_state_data(response):
     table = soup.find("table", attrs={"class": "infocaseta"})
 
     rows = table.findAll("tr")
-    details = ('totală', 'vecini', 'fus orar', 'densitate', 'estimare', 'limbi oficiale', 'sistem politic', 'capitala')
 
-    state_data = []
+    state_data = {
+        'totală': None, # area
+        'vecini': None,
+        'fus orar': None,
+        'densitate': None,
+        'estimare': None, # population
+        'limbi oficiale': None,
+        'sistem politic': None,
+        'capitala': None
+    }
+
     for row in rows:
 
         header = row.find("th")
@@ -101,23 +109,22 @@ def scrape_state_data(response):
             header_text = header_text.strip()
             value_text = value.get_text(strip=True)
 
-            if header_text == 'totală':
-                value_text = format_area(value_text)
-            elif header_text == 'estimare':
-                value_text = format_population(value_text)
+            if header_text == 'fus orar':
+                state_data['fus orar'] = value_text
+            elif header_text == 'totală':
+                state_data['totală'] = format_area(value_text)
+            elif header_text == 'estimare' or header_text == 'recensământ': # Norvegia uses recensamant
+                state_data['estimare'] = format_population(value_text)
             elif header_text == 'vecini':
-                value_text = format_neighbors(value)
+                state_data['vecini'] = format_neighbors(value)
             elif header_text == 'limbi oficiale':
-                value_text = format_languages(value)
+                state_data['limbi oficiale'] = format_languages(value)
             elif header_text == 'sistem politic':
-                value_text = format_political_system(value)
+                state_data['sistem politic'] = format_political_system(value)
             elif header_text == 'capitala':
-                value_text = format_capital(value)
+                state_data['capitala'] = format_capital(value)
             elif header_text == 'densitate':
-                value_text = format_density(value_text)
-
-            if header_text in details:
-                    state_data.append(value_text)
+                state_data['densitate'] = format_density(value_text)
 
     return state_data
 
@@ -148,7 +155,7 @@ def format_population(value_text):
     """
     new_value_text = value_text.split()[0]
     new_value_text = ''.join([char for char in new_value_text if char.isdigit() or char == '.'])
-    return new_value_text
+    return new_value_text.replace('.', '')
 
 
 def format_neighbors(value):
@@ -236,7 +243,14 @@ def format_density(value_text):
     Returns:
         str: The formatted density value.
     """
-    return value_text.replace('[', ' ').replace('/', ' ').split()[0]
+
+    if value_text.startswith('('): # Republica Moldova references the year at the start, not the end
+        match = re.search(r'(\d+,\d+)', value_text)
+        if match:
+            value_text = match.group(1)
+
+        return value_text.replace(',', '.') # Romania uses ,
+    return value_text.replace('[', ' ').replace('/', ' ').replace('.', '').replace(',', '.').split()[0]
 
 def main():
     response = req_url("https://ro.wikipedia.org/wiki/Lista_statelor_lumii")
@@ -247,8 +261,6 @@ def main():
     states, state_links = scrape_states(response)
     base_url = "https://ro.wikipedia.org"
 
-    states_data = dict()
-
     for i in range(len(states)):
         state_url = base_url + state_links[i]
         state_page = req_url(state_url)
@@ -256,10 +268,12 @@ def main():
             return
 
         state_data = scrape_state_data(state_page)
-        states_data[states[i]] = state_data
 
         print(f"State: {states[i]}")
         print(state_data)
+
+
+
 
 if __name__ == "__main__":
     main()
